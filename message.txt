@@ -1,0 +1,125 @@
+```const express = require('express');
+const app = express();
+const pool = require('./config/database');
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+
+app.get('/todo/', async (req, res, next) => {
+    const start_date = req.query.start_date
+    const end_date = req.query.end_date
+    
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+
+        let query = "SELECT id, title, description, DATE_FORMAT(due_date, '%Y-%m-%d') as due_date, `order` FROM `todo`";
+        const queryParams = [];
+        
+        if (start_date && end_date) {
+          query += " WHERE `due_date` BETWEEN ? AND ?";
+          queryParams.push(start_date, end_date);
+        }
+    
+        const [rows, field] = await conn.query(query, queryParams);
+        res.status(200).json(rows)
+        
+        await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      next(err)
+    //   res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูล" })
+    } finally {
+      conn.release();
+    }
+
+})
+
+app.post('/todo/', async (req, res, next) => {
+    const title = req.body.title
+    const description = req.body.description
+    let due_date = req.body.due_date
+
+
+    
+    
+    
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+        if (!due_date) {
+            due_date = new Date()
+            yourDate.toISOString().split('T')[0]
+        }
+        if (!description) {
+            res.status(400).json({ message: "ต้องกรอก description" });
+        }
+        if (!title) {
+            res.status(400).json({ message: "ต้องกรอก title" });
+        }
+        const [sub, field4] = await conn.query(
+            "SELECT max(`order`) as neworder FROM `todo`",
+            )
+            
+        const [rows1, field1] = await conn.query(
+                "INSERT INTO `todo` (`title`, `description`, `due_date`,`order`) VALUES (?, ?,?,?)", [title, description,due_date,(sub[0].neworder+1)],
+                )
+                
+                
+        const [rowsselect, field2] = await conn.query(
+                    "SELECT *,DATE_FORMAT(due_date, '%Y-%m-%d') as datetime FROM todo where id =?", [rows1.insertId],
+                    )
+                    
+        res.status(201).json({
+            message: "สร้าง ToDo '" + rowsselect[0].title + "' สำเร็จ",
+            todo: {
+                id: rows1.insertId,
+                title: rowsselect[0].title,
+                description: rowsselect[0].description,
+                due_date: rowsselect[0].datetime,
+                order: rowsselect[0].order,
+            },
+        })
+        
+        
+        await conn.commit();
+    } catch (err) {
+        
+        await conn.rollback();
+        next(err)
+    } finally {
+        conn.release();
+    }
+})
+
+app.delete('/todo/:id', async (req, res, next) => {
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+        const [rows1, fields1] = await conn.query(
+            "SELECT * FROM todo where id = ?",
+            [req.params.id],
+            )
+            await conn.query(
+                "DELETE FROM todo where id = ?", [req.params.id],
+                )
+                res.status(200).json({ message: "ลบ ToDo \'" + rows1[0].title + "\' สำเร็จ" })
+                await conn.commit();
+            } catch (err) {
+                await conn.rollback();
+        res.status(404).json({ message: "ไม่พบ ToDo ที่ต้องการลบ" })
+    } finally {
+        conn.release();
+    }
+})
+
+
+/** 
+ *  เริ่มทำข้อสอบได้ที่ใต้ข้อความนี้เลยครับ
+ * !!! ไม่ต้องใส่ app.listen() ในไฟล์นี้นะครับ มันจะไป listen ที่ไฟล์ server.js เองครับ !!!
+ * !!! ห้ามลบ module.exports = app; ออกนะครับ  ไม่งั้นระบบตรวจไม่ได้ครับ !!!
+*/
+
+module.exports = app;
+```
